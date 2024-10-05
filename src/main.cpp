@@ -1,15 +1,15 @@
 #include <Arduino.h>
-#include <SPI.h> // Include the SPI library for SPI communication
-#include <TFT_eSPI.h> // Include the TFT_eSPI library for the display
-#include <Wire.h> // Include the Wire library for I2C communication
+#include <SPI.h>
+#include <TFT_eSPI.h>
+#include <Wire.h>
 #include <QMC5883LCompass.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <MAX30105.h>
 
-#define SCL_PIN 40  // Chân SCL
-#define SDA_PIN 41  // Chân SDA
-#define BUTTON_PIN 21   // Chân nút bấm (nối với GND)
+#define SCL_PIN 40
+#define SDA_PIN 41
+#define BUTTON_PIN 21
 
 Adafruit_MPU6050 mpu;
 QMC5883LCompass compass;
