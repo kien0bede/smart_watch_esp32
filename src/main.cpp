@@ -17,6 +17,7 @@ MAX30105 particleSensor;
 
 int current_sensor = 1;
 bool button_pressed = false;
+bool heart_sensor_on = true;
 
 void IRAM_ATTR buttonISR() {
   button_pressed = true;
@@ -64,6 +65,14 @@ void readHeartSensor() {
   delay(500);
 }
 
+void shutdownHeartSensor() {
+  particleSensor.shutDown();
+}
+
+void wakeupHeartSensor() {
+  particleSensor.wakeUp();
+}
+
 void loop() {
   if (button_pressed) {
     button_pressed = false;
@@ -79,8 +88,17 @@ void loop() {
         current_sensor = 1;
         break;
     }
+
+    if (current_sensor != 1 && heart_sensor_on) {
+      shutdownHeartSensor();
+      heart_sensor_on = false;
+    }
   }
   if (current_sensor == 1) {
+    if (!heart_sensor_on) {
+      wakeupHeartSensor();
+      heart_sensor_on = true;
+    }
     readHeartSensor();
   } else if (current_sensor == 2) {
     readCompass();
