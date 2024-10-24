@@ -10,10 +10,30 @@
 #include <OneButton.h>
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
+#include <time.h>
+#include "esp_sleep.h"
+#include "esp_system.h"
+#include <WiFi.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <RTClib.h>
 
 #define SCL_PIN 40
 #define SDA_PIN 41
 #define BUTTON_PIN 21
+#define TFT_BLK_PIN 14
+
+RTC_DATA_ATTR int boot_count = 0;
+
+// Thông tin kết nối WiFi
+const char* ssid = "SIX TRET";
+const char* password = "chaokhub";
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 7 * 3600);
+RTC_DS1307 rtc;
+
+TFT_eSPI tft = TFT_eSPI();
 
 Adafruit_MPU6050 mpu;
 QMC5883LCompass compass;
@@ -40,6 +60,7 @@ int pressState = 0;
 int Screen = 0;
 int subScreen = 0;
 bool faceChange = false;
+bool wifi_disconnect = true;
 
 void IRAM_ATTR checkTicks() {
   button.tick();
@@ -47,6 +68,9 @@ void IRAM_ATTR checkTicks() {
 
 void enter_sleep()
 {
+  analogWrite(TFT_BLK_PIN, 0);
+  delay(100);
+  rtc_gpio_hold_en((gpio_num_t) TFT_BLK_PIN);
   rtc_gpio_hold_en(GPIO_NUM_21);
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_21, LOW);
   esp_deep_sleep_start();
@@ -57,7 +81,7 @@ void ShortClick() {
   lastWake = millis();
   if (Screen == 0) {
     subScreen++;
-    if (subScreen > 2) {
+    if (subScreen > 3) {
       subScreen = 0;
       faceChange = true;
     }
@@ -84,9 +108,8 @@ void LongPress() {
 
 void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
-  printf("Begin Test!!!\n");
   // Init gia toc
-  mpu.begin();
+  mpu.begin(0x69);
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
@@ -101,10 +124,71 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   button.attachClick(ShortClick);
   button.attachLongPressStart(LongPress);
+  // Khởi tạo TFT
+  tft.init();
+  tft.setRotation(1);  // Điều chỉnh hướng màn hình
+  tft.fillScreen(TFT_BLACK);  // Đặt màu nền là đen
+  tft.setTextColor(TFT_WHITE);  // Đặt màu chữ là trắng
+  tft.setTextSize(2);  // Kích thước chữ
+
+  rtc_gpio_hold_dis((gpio_num_t) TFT_BLK_PIN);
+  pinMode(TFT_BLK_PIN, OUTPUT);
+  digitalWrite(TFT_BLK_PIN, HIGH);
+
+  if(!rtc.begin()) {
+    printf("Không thể kết nối với DS1307!\n");
+  }
+
+  boot_count++;
+  printf("Số lần khởi động: %d\n", boot_count);
+
+  if (boot_count == 1) {
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      printf("Đang kết nối WiFi...\n");
+    }
+    printf("WiFi đã kết nối!\n");
+    wifi_disconnect = false;
+    timeClient.begin();
+    timeClient.update();
+    unsigned long epochTime = timeClient.getEpochTime();
+    DateTime ntpTime = DateTime(epochTime);
+    rtc.adjust(ntpTime);
+    WiFi.disconnect(true);
+    wifi_disconnect = true;
+  }
+  else {
+    DateTime rtcTime = rtc.now();
+    printf("Thời gian từ DS1307 sau khi thức dậy: ");
+    printf(rtcTime.timestamp().c_str());
+  }
+  delay(100);
 }
 
 void watchFace() {
-  printf("Watch Face\n");
+  DateTime now = rtc.now();
+  
+  // Đặt cỡ chữ lớn
+  tft.setTextSize(3); // Cỡ chữ lớn (thay đổi giá trị nếu cần)
+  
+  // Đặt màu chữ là trắng và nền là đen
+  tft.setTextColor(TFT_WHITE, TFT_BLACK); // Màu chữ trắng và nền đen
+  
+  // In thời gian theo định dạng chiều dọc
+  tft.setCursor(10, 10); // Đặt vị trí con trỏ để vẽ
+  tft.printf("%02d/%02d/%04d\n", 
+    now.day(),    // Ngày
+    now.month(),  // Tháng
+    now.year()    // Năm
+  );
+
+  tft.setCursor(10, 80); // Di chuyển con trỏ xuống để in giờ
+  tft.printf("%02d:%02d:%02d", 
+    now.hour(),    // Giờ
+    now.minute(),  // Phút
+    now.second()   // Giây
+  );
 }
 
 void heartRateApp() {
@@ -145,7 +229,11 @@ void heartRateApp() {
 }
 
 void compassApp() {
-  printf("Compass\n");
+  compass.read();
+  int x = compass.getX();
+  int y = compass.getY();
+  int z = compass.getZ();
+  printf("Compass X: %d, Y: %d, Z: %d\n", x, y, z);
 }
 
 void watchtask() {
@@ -160,8 +248,12 @@ void watchtask() {
       watchFace();
     } else if (subScreen == 1) {
       heartRateApp();
-    } else {
+    } else if (subScreen == 2) {
       compassApp();
+    } else if (subScreen == 3) {
+      sensors_event_t a, g, temp;
+      mpu.getEvent(&a, &g, &temp);
+      printf("MPU X: %.3f, Y: %.3f, Z: %.3f\n", a.acceleration.x, a.acceleration.y, a.acceleration.z);
     }
   }
 }
