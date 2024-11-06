@@ -17,6 +17,9 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <RTClib.h>
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
 
 #define SCL_PIN 40
 #define SDA_PIN 41
@@ -62,7 +65,11 @@ int Screen = 0;
 int subScreen = 0;
 bool faceChange = false;
 bool wifi_disconnect = true;
+bool bt_disconnect = false;
 bool screenHeartRate = true;
+
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
 #define WAKEUP_GPIO_4              GPIO_NUM_4     // Only RTC IO are allowed - ESP32 Pin example
@@ -253,6 +260,13 @@ void ShortClick() {
       particleSensor.shutDown();
     }
   }
+  if (Screen == 1) {
+    subScreen++;
+    if (subScreen > 2) {
+      subScreen = 0;
+      faceChange = true;
+    }
+  }
   pressState = 1;
 }
 
@@ -262,6 +276,30 @@ void LongPress() {
   lastWake = millis();
   lastDisplayUpdate = millis();
   particleSensor.shutDown();
+  if (Screen == 0) {
+    if (subScreen == 0) {
+      Screen = 1;
+      subScreen = 0;
+      return;
+    }
+  }
+  if (Screen == 1) {
+    if (subScreen == 0) {
+      Screen = 2;
+      subScreen = 0;
+      return;
+    }
+    if (subScreen == 1) {
+      Screen = 3;
+      subScreen = 0;
+      return;
+    }
+    if (subScreen == 2) {
+      Screen = 0;
+      subScreen = 0;
+      return;
+    }
+  }
   pressState = 1;
   lastPressed = millis();
 }
@@ -274,6 +312,27 @@ void setup() {
   // mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   // mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   configureMPU(5);
+  // Init BT
+  BLEDevice::init("SmartWatch");
+  BLEServer *pServer = BLEDevice::createServer();
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+
+  pCharacteristic->setValue("Hello World says Neil");
+  pService->start();
+
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);  // Tương thích với iPhone
+  pAdvertising->setMinPreferred(0x12);
+
+  BLEDevice::startAdvertising();
+  bt_disconnect = false;
   // Init la ban
   compass.init();
   // Init nhip tim
@@ -304,20 +363,9 @@ void setup() {
   printf("Số lần khởi động: %d\n", boot_count);
 
   if (boot_count == 1) {
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      printf("Đang kết nối WiFi...\n");
-    }
-    printf("WiFi đã kết nối!\n");
-    wifi_disconnect = false;
-    timeClient.begin();
-    timeClient.update();
-    unsigned long epochTime = timeClient.getEpochTime();
-    DateTime ntpTime = DateTime(epochTime);
-    rtc.adjust(ntpTime);
-    WiFi.disconnect(true);
-    wifi_disconnect = true;
+    DateTime rtcTime = rtc.now();
+    printf("Thời gian từ DS1307 sau khi thức dậy: ");
+    printf(rtcTime.timestamp().c_str());
   }
   else {
     DateTime rtcTime = rtc.now();
@@ -402,6 +450,25 @@ void compassApp() {
   printf("Compass X: %d, Y: %d, Z: %d\n", x, y, z);
 }
 
+void walkApp() {
+  int16_t accelX = readWord(MPU6050_ADDRESS, ACCEL_XOUT_H);
+  int16_t accelY = readWord(MPU6050_ADDRESS, ACCEL_XOUT_H + 2);
+  int16_t accelZ = readWord(MPU6050_ADDRESS, ACCEL_XOUT_H + 4);
+
+  // Convert raw values to 'g' for accelerometer and '°/s' for gyroscope
+  float ax = accelX / 16384.0;
+  float ay = accelY / 16384.0;
+  float az = accelZ / 16384.0;
+
+  // Print the accelerometer and gyroscope values
+  printf("Accel (g): X=");
+  printf("%f", ax);
+  printf(" Y=");
+  printf("%f", ay);
+  printf(" Z=");
+  printf("%f\n", az);
+}
+
 void watchtask() {
   fallDetect();
   if (pressState == 1 && digitalRead(0) == 1) {
@@ -418,22 +485,58 @@ void watchtask() {
     } else if (subScreen == 2) {
       compassApp();
     } else if (subScreen == 3) {
-      int16_t accelX = readWord(MPU6050_ADDRESS, ACCEL_XOUT_H);
-      int16_t accelY = readWord(MPU6050_ADDRESS, ACCEL_XOUT_H + 2);
-      int16_t accelZ = readWord(MPU6050_ADDRESS, ACCEL_XOUT_H + 4);
-
-      // Convert raw values to 'g' for accelerometer and '°/s' for gyroscope
-      float ax = accelX / 16384.0;
-      float ay = accelY / 16384.0;
-      float az = accelZ / 16384.0;
-
-      // Print the accelerometer and gyroscope values
-      printf("Accel (g): X=");
-      printf("%f", ax);
-      printf(" Y=");
-      printf("%f", ay);
-      printf(" Z=");
-      printf("%f\n", az);
+      walkApp();
+    }
+  }
+  if (Screen == 1) {
+    if (subScreen == 0) {
+      printf("Screen 1 0\n");
+    } else if (subScreen == 1) {
+      printf("Screen 1 1\n");
+    }
+  }
+  if (Screen == 2) {
+    if (subScreen == 0) {
+      if (wifi_disconnect == true) {
+        WiFi.begin(ssid, password);
+        int max_retries = 10; // Thời gian chờ tối đa 10 giây (10 lần delay 1 giây)
+        int retries = 0;
+        while (WiFi.status() != WL_CONNECTED && retries < max_retries) {
+            delay(1000);
+            printf("Đang kết nối WiFi...\n");
+            retries++;
+        }
+        if (WiFi.status() == WL_CONNECTED) {
+            printf("WiFi đã kết nối!\n");
+            wifi_disconnect = false;
+        } else {
+            printf("Kết nối WiFi không thành công!\n");
+        }
+        wifi_disconnect = false;
+      } else {
+        WiFi.disconnect();
+        printf("WiFi đã ngắt kết nối!\n");
+        wifi_disconnect = true;
+      }
+      delay(2000);
+      Screen = 1;
+      subScreen = 0;
+    }
+  }
+  if (Screen == 3) {
+    if (subScreen == 0) {
+      if (bt_disconnect == false) {
+        BLEDevice::stopAdvertising();
+        printf("BT đã ngắt kết nối!\n");
+        bt_disconnect = true;
+      } else {
+        BLEDevice::startAdvertising();
+        printf("BT đã kết nối!\n");
+        bt_disconnect = false;
+      }
+      delay(2000);
+      Screen = 1;
+      subScreen = 1;
     }
   }
 }
