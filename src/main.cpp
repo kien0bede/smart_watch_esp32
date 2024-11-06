@@ -20,6 +20,8 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include "timeCount.h"
+#include "display.h"
 
 #define SCL_PIN 40
 #define SDA_PIN 41
@@ -125,7 +127,7 @@ int16_t readWord(uint8_t address, uint8_t reg) {
   Wire.beginTransmission(address);
   Wire.write(reg);
   Wire.endTransmission(false);
-  Wire.requestFrom(address, 2);
+  Wire.requestFrom(address, (uint8_t) 2);
 
   int16_t value = Wire.read() << 8 | Wire.read();
   return value;
@@ -254,10 +256,14 @@ void ShortClick() {
     }
 
     if (subScreen == 1) {
-      particleSensor.wakeUp();
-      millisHeartRate = millis();
-    } else {
       particleSensor.shutDown();
+      faceChange = true;
+    } else if (subScreen == 2) {
+      particleSensor.wakeUp();
+      faceChange = true;
+      millisHeartRate = millis();
+    } else if (subScreen == 3) {
+      faceChange = true;
     }
   }
   if (Screen == 1) {
@@ -266,6 +272,9 @@ void ShortClick() {
       subScreen = 0;
       faceChange = true;
     }
+  }
+  if (Screen == 4) {
+    startStop();
   }
   pressState = 1;
 }
@@ -280,6 +289,12 @@ void LongPress() {
     if (subScreen == 0) {
       Screen = 1;
       subScreen = 0;
+      return;
+    }
+    if (subScreen == 1) {
+      Screen = 4;
+      subScreen = 0;
+      faceChange = true;
       return;
     }
   }
@@ -297,8 +312,16 @@ void LongPress() {
     if (subScreen == 2) {
       Screen = 0;
       subScreen = 0;
+      faceChange = true;
       return;
     }
+  }
+  if (Screen == 4) {
+    resetTime();
+    faceChange = true;
+    Screen = 0;
+    subScreen = 1;
+    return;
   }
   pressState = 1;
   lastPressed = millis();
@@ -307,10 +330,6 @@ void LongPress() {
 void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   // Init gia toc
-  // mpu.begin(0x69);
-  // mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  // mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  // mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   configureMPU(5);
   // Init BT
   BLEDevice::init("SmartWatch");
@@ -377,6 +396,11 @@ void setup() {
 
 void watchFace() {
   DateTime now = rtc.now();
+
+  if (faceChange == true) {
+        tft.fillScreen(TFT_BLACK);
+        faceChange = false;
+  }
   
   // Đặt cỡ chữ lớn
   tft.setTextSize(3); // Cỡ chữ lớn (thay đổi giá trị nếu cần)
@@ -481,7 +505,7 @@ void watchtask() {
     if (subScreen == 0) {
       watchFace();
     } else if (subScreen == 1) {
-      heartRateApp();
+      timeCountInitScreen();
     } else if (subScreen == 2) {
       compassApp();
     } else if (subScreen == 3) {
@@ -493,6 +517,8 @@ void watchtask() {
       printf("Screen 1 0\n");
     } else if (subScreen == 1) {
       printf("Screen 1 1\n");
+    } else if (subScreen == 2) {
+      printf("OUT\n");
     }
   }
   if (Screen == 2) {
@@ -538,6 +564,9 @@ void watchtask() {
       Screen = 1;
       subScreen = 1;
     }
+  }
+  if (Screen == 4) {
+    timeCountApp();
   }
 }
 
