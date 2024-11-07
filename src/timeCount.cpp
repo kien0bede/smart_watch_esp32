@@ -43,6 +43,7 @@ void resetTime() {
 void timeCountApp() {
   unsigned long currentTime;
     if (isRunning) {
+        lastWake = millis();
         currentTime = millis() - startTime + elapsedTime;
         displayTime(currentTime);
     } else {
