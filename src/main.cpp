@@ -22,11 +22,11 @@
 #include <BLEServer.h>
 #include "timeCount.h"
 #include "display.h"
+#include "heartRateApp.h"
 
 #define SCL_PIN 40
 #define SDA_PIN 41
 #define BUTTON_PIN 21
-#define TFT_BLK_PIN 14
 
 RTC_DATA_ATTR int boot_count = 0;
 
@@ -42,16 +42,8 @@ TFT_eSPI tft = TFT_eSPI();
 
 Adafruit_MPU6050 mpu;
 QMC5883LCompass compass;
-MAX30105 particleSensor;
 
 OneButton button(BUTTON_PIN, true);
-
-const byte RATE_SIZE = 4; //Increase this for more averaging. 4 is good.
-byte rates[RATE_SIZE]; //Array of heart rates
-byte rateSpot = 0;
-long lastBeat = 0; //Time at which the last beat occurred
-float beatsPerMinute;
-int beatAvg;
 
 int current_sensor = 1;
 bool button_pressed = false;
@@ -60,7 +52,6 @@ bool heart_sensor_on = true;
 unsigned long lastPressed = 0;
 unsigned long lastWake = 0;
 unsigned long lastDisplayUpdate = 0;
-unsigned long millisHeartRate = 0;
 unsigned long pressStartTime;
 int pressState = 0;
 int Screen = 0;
@@ -68,7 +59,6 @@ int subScreen = 0;
 bool faceChange = false;
 bool wifi_disconnect = true;
 bool bt_disconnect = false;
-bool screenHeartRate = true;
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -242,12 +232,6 @@ void ShortClick() {
   lastPressed = currentMillis;
 
   if (Screen == 0) {
-    if (subScreen == 1 && !screenHeartRate) {
-      millisHeartRate = millis();
-      digitalWrite(TFT_BLK_PIN, HIGH);
-      screenHeartRate = true;
-      return;
-    }
     subScreen++;
     
     if (subScreen > 3) {
@@ -259,10 +243,10 @@ void ShortClick() {
       particleSensor.shutDown();
       faceChange = true;
     } else if (subScreen == 2) {
-      particleSensor.wakeUp();
+      particleSensor.shutDown();
       faceChange = true;
-      millisHeartRate = millis();
     } else if (subScreen == 3) {
+      particleSensor.shutDown();
       faceChange = true;
     }
   }
@@ -284,7 +268,6 @@ void LongPress() {
   pressStartTime = millis() - 1000;  // as set in setPressTicks()
   lastWake = millis();
   lastDisplayUpdate = millis();
-  particleSensor.shutDown();
   if (Screen == 0) {
     if (subScreen == 0) {
       Screen = 1;
@@ -294,6 +277,13 @@ void LongPress() {
     if (subScreen == 1) {
       Screen = 4;
       subScreen = 0;
+      faceChange = true;
+      return;
+    }
+    if (subScreen == 2) {
+      Screen = 5;
+      subScreen = 0;
+      particleSensor.wakeUp();
       faceChange = true;
       return;
     }
@@ -321,6 +311,13 @@ void LongPress() {
     faceChange = true;
     Screen = 0;
     subScreen = 1;
+    return;
+  }
+  if (Screen == 5) {
+    particleSensor.shutDown();
+    Screen = 0;
+    subScreen = 2;
+    faceChange = true;
     return;
   }
   pressState = 1;
@@ -356,9 +353,9 @@ void setup() {
   compass.init();
   // Init nhip tim
   particleSensor.begin();
-  particleSensor.setup();
-  particleSensor.setPulseAmplitudeRed(0x0A);
-  particleSensor.setPulseAmplitudeGreen(0);
+  particleSensor.setup(); // Thiết lập với cấu hình mặc định
+  particleSensor.setPulseAmplitudeRed(0x0A); // Độ sáng LED đỏ thấp
+  particleSensor.setPulseAmplitudeIR(0x0A);  // Độ sáng LED hồng ngoại thấp
   // Init button
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   button.attachClick(ShortClick);
@@ -424,48 +421,6 @@ void watchFace() {
   );
 }
 
-void heartRateApp() {
-  long irValue = particleSensor.getIR();
-  if (millis() - millisHeartRate > 10000)
-  {
-    digitalWrite(TFT_BLK_PIN, LOW);
-    screenHeartRate = false;
-  }
-
-  if (checkForBeat(irValue) == true)
-  {
-    //We sensed a beat!
-    long delta = millis() - lastBeat;
-    lastBeat = millis();
-
-    beatsPerMinute = 60 / (delta / 1000.0);
-
-    if (beatsPerMinute < 255 && beatsPerMinute > 20)
-    {
-      rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
-      rateSpot %= RATE_SIZE; //Wrap variable
-
-      //Take average of readings
-      beatAvg = 0;
-      for (byte x = 0 ; x < RATE_SIZE ; x++)
-        beatAvg += rates[x];
-      beatAvg /= RATE_SIZE;
-    }
-  }
-
-  printf("IR=");
-  printf("%d", irValue);
-  printf(", BPM=");
-  printf("%d", beatsPerMinute);
-  printf(", Avg BPM=");
-  printf("%d\n", beatAvg);
-
-  if (irValue < 50000)
-    printf(" No finger?\n");
-
-  printf("");
-}
-
 void compassApp() {
   compass.read();
   int x = compass.getX();
@@ -507,7 +462,7 @@ void watchtask() {
     } else if (subScreen == 1) {
       timeCountInitScreen();
     } else if (subScreen == 2) {
-      compassApp();
+      heartRateInitScreen();
     } else if (subScreen == 3) {
       walkApp();
     }
@@ -567,6 +522,14 @@ void watchtask() {
   }
   if (Screen == 4) {
     timeCountApp();
+  }
+  if (Screen == 5) {
+    if (subScreen == 0) {
+      heartRateApp();
+    }
+    if (subScreen == 1) {
+      heartRateResultScreen();
+    }
   }
 }
 
