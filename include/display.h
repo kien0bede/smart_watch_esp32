@@ -3,7 +3,12 @@
 
 #include <TFT_eSPI.h>
 
-extern TFT_eSPI tft;  // Khai báo extern
+#define TFT_BLK_PIN 14
+
+extern TFT_eSPI tft;
 extern bool faceChange;
+extern int Screen;
+extern int subScreen;
+extern unsigned long lastWake;
 
 #endif
