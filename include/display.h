@@ -2,13 +2,17 @@
 #define DISPLAY_H
 
 #include <TFT_eSPI.h>
+#include <PNGdec.h>
 
 #define TFT_BLK_PIN 14
 
 extern TFT_eSPI tft;
+extern TFT_eSprite img;
+extern PNG png;
 extern bool faceChange;
 extern int Screen;
 extern int subScreen;
 extern unsigned long lastWake;
+void pngDraw(PNGDRAW *pDraw);
 
 #endif

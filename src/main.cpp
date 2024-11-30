@@ -23,25 +23,47 @@
 #include "timeCount.h"
 #include "display.h"
 #include "heartRateApp.h"
+#include "compassApp.h"
+#include "timeSync.h"
+#include "ble.h"
+#include <PNGdec.h>
+#include "watchscreen.h" 
+#include "bluetooth16.h"
+#include "counttime.h"
+#include "heartrate_png.h"
+#include "sync_png.h"
+#include "exit_png.h"
+
+#define MAX_IMAGE_WIDTH 240
+// Các toạ độ cho background và icon Bluetooth
+int16_t xpos;
+int16_t ypos;
+
+int16_t bg_xpos = 0;
+int16_t bg_ypos = 0;
+
+int16_t bt_xpos = 150;
+int16_t bt_ypos = 0;
+
+int16_t rc_exit;
+int16_t rc_sync;
+
 
 #define SCL_PIN 40
 #define SDA_PIN 41
-#define BUTTON_PIN 21
+#define BUTTON_PIN 12
 
 RTC_DATA_ATTR int boot_count = 0;
 
-// Thông tin kết nối WiFi
-const char* ssid = "SIX TRET";
-const char* password = "chaokhub";
-
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 7 * 3600);
-RTC_DS1307 rtc;
+RTC_PCF8563 rtc;
 
 TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite img = TFT_eSprite(&tft);
 
-Adafruit_MPU6050 mpu;
-QMC5883LCompass compass;
+PNG png; 
+
+// Adafruit_MPU6050 mpu;
+// QMC5883LCompass compass;
 
 OneButton button(BUTTON_PIN, true);
 
@@ -56,19 +78,15 @@ unsigned long pressStartTime;
 int pressState = 0;
 int Screen = 0;
 int subScreen = 0;
-bool faceChange = false;
+bool faceChange = true;
 bool wifi_disconnect = true;
-bool bt_disconnect = false;
-
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
-#define WAKEUP_GPIO_4              GPIO_NUM_4     // Only RTC IO are allowed - ESP32 Pin example
-#define WAKEUP_GPIO_21              GPIO_NUM_21     // Only RTC IO are allowed - ESP32 Pin example
+#define WAKEUP_GPIO_2              GPIO_NUM_2     // Only RTC IO are allowed - ESP32 Pin example
+#define WAKEUP_GPIO_12              GPIO_NUM_12     // Only RTC IO are allowed - ESP32 Pin example
 
 // Define bitmask for multiple GPIOs
-uint64_t bitmask = BUTTON_PIN_BITMASK(WAKEUP_GPIO_4) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_21);
+uint64_t bitmask = BUTTON_PIN_BITMASK(WAKEUP_GPIO_2) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_12);
 
 // MPU registers
 #define SIGNAL_PATH_RESET  0x68
@@ -219,7 +237,7 @@ void enter_sleep()
   analogWrite(TFT_BLK_PIN, 0);
   delay(100);
   rtc_gpio_hold_en((gpio_num_t) TFT_BLK_PIN);
-  rtc_gpio_hold_en(GPIO_NUM_21);
+  rtc_gpio_hold_en(GPIO_NUM_12);
   esp_sleep_enable_ext1_wakeup(bitmask, ESP_EXT1_WAKEUP_ANY_LOW);
   esp_deep_sleep_start();
 }
@@ -252,6 +270,7 @@ void ShortClick() {
   }
   if (Screen == 1) {
     subScreen++;
+    faceChange = true;
     if (subScreen > 2) {
       subScreen = 0;
       faceChange = true;
@@ -272,6 +291,7 @@ void LongPress() {
     if (subScreen == 0) {
       Screen = 1;
       subScreen = 0;
+      faceChange = true;
       return;
     }
     if (subScreen == 1) {
@@ -287,6 +307,17 @@ void LongPress() {
       faceChange = true;
       return;
     }
+    if (subScreen == 3)
+    {
+      Screen = 6;
+      subScreen = 0;
+      tft.setFreeFont(0);
+      xpos = 0;
+      ypos = 0;
+      faceChange = true;
+      return;
+    }
+    
   }
   if (Screen == 1) {
     if (subScreen == 0) {
@@ -320,6 +351,12 @@ void LongPress() {
     faceChange = true;
     return;
   }
+  if (Screen == 6) {
+    Screen = 0;
+    subScreen = 3;
+    faceChange = true;
+    return;
+  }
   pressState = 1;
   lastPressed = millis();
 }
@@ -329,40 +366,20 @@ void setup() {
   // Init gia toc
   configureMPU(5);
   // Init BT
-  BLEDevice::init("SmartWatch");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-                                         CHARACTERISTIC_UUID,
-                                         BLECharacteristic::PROPERTY_READ |
-                                         BLECharacteristic::PROPERTY_WRITE
-                                       );
-
-  pCharacteristic->setValue("Hello World says Neil");
-  pService->start();
-
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // Tương thích với iPhone
-  pAdvertising->setMinPreferred(0x12);
-
-  BLEDevice::startAdvertising();
-  bt_disconnect = false;
+  initBLE();
   // Init la ban
-  compass.init();
+  compassInit();
   // Init nhip tim
   particleSensor.begin();
   particleSensor.setup(); // Thiết lập với cấu hình mặc định
   particleSensor.setPulseAmplitudeRed(0x0A); // Độ sáng LED đỏ thấp
   particleSensor.setPulseAmplitudeIR(0x0A);  // Độ sáng LED hồng ngoại thấp
   // Init button
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
   button.attachClick(ShortClick);
   button.attachLongPressStart(LongPress);
   // Khởi tạo TFT
   tft.init();
-  tft.setRotation(1);  // Điều chỉnh hướng màn hình
+  tft.setRotation(0);  // Điều chỉnh hướng màn hình
   tft.fillScreen(TFT_BLACK);  // Đặt màu nền là đen
   tft.setTextColor(TFT_WHITE);  // Đặt màu chữ là trắng
   tft.setTextSize(2);  // Kích thước chữ
@@ -372,7 +389,7 @@ void setup() {
   digitalWrite(TFT_BLK_PIN, HIGH);
 
   if(!rtc.begin()) {
-    printf("Không thể kết nối với DS1307!\n");
+    printf("Không thể kết nối với PCF8563!\n");
   }
 
   boot_count++;
@@ -391,42 +408,113 @@ void setup() {
   delay(100);
 }
 
+void pngDraw(PNGDRAW *pDraw) {
+  uint16_t lineBuffer[MAX_IMAGE_WIDTH];
+  png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
+  tft.pushImage(xpos, ypos + pDraw->y, pDraw->iWidth, 1, lineBuffer);
+}
+
+int16_t rc_bluetooth;
+int16_t rc_watchscreen;
+void WatchFaceScreen() {
+  xpos = bg_xpos;
+  ypos = bg_ypos;
+  /* Hiển thị background */
+  rc_watchscreen = png.openFLASH((uint8_t *)watchscreen, sizeof(watchscreen), pngDraw);
+  if (rc_watchscreen == PNG_SUCCESS) {
+    tft.startWrite();
+    rc_watchscreen = png.decode(NULL, 0);
+    tft.endWrite();
+  }
+}
+
+void showBluetoothIcon() {
+  xpos = bt_xpos;
+  ypos = bt_ypos;
+  
+  rc_bluetooth = png.openFLASH((uint8_t *)bluetooth16, sizeof(bluetooth16), pngDraw);
+  if (rc_bluetooth == PNG_SUCCESS) {
+    tft.startWrite();
+    rc_bluetooth = png.decode(NULL, 0);
+    tft.endWrite();
+  }
+  // Đặt điểm vẽ về 0:0
+  xpos = 0;
+  ypos = 0;
+}
+
+void hideBluetoothIcon() {
+  tft.fillRect(bt_xpos, bt_ypos, 32, 32, TFT_BLACK); // Xóa icon bằng cách vẽ nền đen
+}
+
 void watchFace() {
   DateTime now = rtc.now();
 
   if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
+        WatchFaceScreen();
         faceChange = false;
   }
-  
-  // Đặt cỡ chữ lớn
-  tft.setTextSize(3); // Cỡ chữ lớn (thay đổi giá trị nếu cần)
-  
-  // Đặt màu chữ là trắng và nền là đen
-  tft.setTextColor(TFT_WHITE, TFT_BLACK); // Màu chữ trắng và nền đen
-  
-  // In thời gian theo định dạng chiều dọc
-  tft.setCursor(10, 10); // Đặt vị trí con trỏ để vẽ
-  tft.printf("%02d/%02d/%04d\n", 
-    now.day(),    // Ngày
-    now.month(),  // Tháng
-    now.year()    // Năm
-  );
-
-  tft.setCursor(10, 80); // Di chuyển con trỏ xuống để in giờ
-  tft.printf("%02d:%02d:%02d", 
+  if (bt_disconnect == false) {
+        showBluetoothIcon();
+  } else {
+        hideBluetoothIcon();
+  }
+  // Hiển thị giờ phút giây
+  tft.setCursor(35, 50);
+  tft.setTextSize(6);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK); 
+  tft.printf("%02d:%02d", 
     now.hour(),    // Giờ
-    now.minute(),  // Phút
-    now.second()   // Giây
+    now.minute()  // Phút
   );
-}
 
-void compassApp() {
-  compass.read();
-  int x = compass.getX();
-  int y = compass.getY();
-  int z = compass.getZ();
-  printf("Compass X: %d, Y: %d, Z: %d\n", x, y, z);
+  // Hiển thị ngày tháng năm
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  // Tạo chuỗi ngày/tháng/năm
+  String dateStr = String(now.day(), DEC) + "/" + 
+                  String(now.month(), DEC) + "/" + 
+                  String(now.year(), DEC);
+
+  int16_t textWidth = tft.textWidth(dateStr.c_str()); // Lấy chiều rộng của văn bản
+  // Tính toán vị trí căn lề cách đều
+  int16_t xpos = (tft.width() - textWidth) / 2;  // Căn giữa
+  tft.setCursor(xpos, 110); // Vị trí trên màn hình (y có thể thay đổi tùy nhu cầu)
+  tft.print(dateStr);
+
+  /* Hiển thị Walk */
+  tft.setCursor(40, 180);
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.printf("WALK");
+  /* Hiển thị BPM */
+  tft.setCursor(160, 180);
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.printf("BPM");
+
+  int walk = 195;
+  /* Căn chỉnh tự động theo kích thước chuỗi */
+  char walkStr[5];
+  sprintf(walkStr, "%04d", walk);
+  int textWidth_walk = tft.textWidth(walkStr); 
+  int x_walk = 5 + (textWidth_walk / 2);
+  tft.setCursor(x_walk, 210);
+  tft.setTextSize(3);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.printf("%s", walkStr);
+
+  int bpm = 98;
+  /* Căn chỉnh tự động theo kích thước chuỗi */
+  char bpmStr[4];
+  sprintf(bpmStr, "%03d", bpm);
+  int textWidth_Bpm = tft.textWidth(bpmStr); 
+  int xBpm = 125 + (textWidth_Bpm / 2);
+  tft.setCursor(xBpm, 210);
+  tft.setTextSize(3);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.printf("%s", bpmStr); 
 }
 
 void walkApp() {
@@ -449,7 +537,7 @@ void walkApp() {
 }
 
 void watchtask() {
-  fallDetect();
+  // fallDetect();
   if (pressState == 1 && digitalRead(0) == 1) {
     pressState = 0;
   }
@@ -464,47 +552,51 @@ void watchtask() {
     } else if (subScreen == 2) {
       heartRateInitScreen();
     } else if (subScreen == 3) {
-      walkApp();
+      compassInitScreen();
     }
   }
   if (Screen == 1) {
     if (subScreen == 0) {
-      printf("Screen 1 0\n");
+      bluetoothInitScreen();
     } else if (subScreen == 1) {
-      printf("Screen 1 1\n");
+      if (faceChange == true) {
+        tft.fillScreen(TFT_BLACK);
+        rc_sync = png.openFLASH((uint8_t *)sync_png, sizeof(sync_png), pngDraw);
+        if (rc_sync == PNG_SUCCESS) {
+            tft.startWrite();
+            rc_sync = png.decode(NULL, 0);
+            tft.endWrite();
+        }
+        tft.setTextSize(3);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK); 
+        String stopwatch = "SYNC TIME";
+        int textWidth_stopwatch = tft.textWidth(stopwatch);
+        int x_stopwatch = (tft.width() - textWidth_stopwatch) / 2;
+        tft.setCursor(x_stopwatch, 200);
+        tft.printf("%s", stopwatch);
+        faceChange = false;
+      }
     } else if (subScreen == 2) {
-      printf("OUT\n");
+      if (faceChange == true) {
+        tft.fillScreen(TFT_BLACK);
+        rc_exit = png.openFLASH((uint8_t *)exit_png, sizeof(exit_png), pngDraw);
+        if (rc_exit == PNG_SUCCESS) {
+            tft.startWrite();
+            rc_exit = png.decode(NULL, 0);
+            tft.endWrite();
+        }
+        tft.setTextSize(3);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK); 
+        String stopwatch = "EXIT";
+        int textWidth_stopwatch = tft.textWidth(stopwatch);
+        int x_stopwatch = (tft.width() - textWidth_stopwatch) / 2;
+        tft.setCursor(x_stopwatch, 200);
+        tft.printf("%s", stopwatch);
+        faceChange = false;
+      }
     }
   }
   if (Screen == 2) {
-    if (subScreen == 0) {
-      if (wifi_disconnect == true) {
-        WiFi.begin(ssid, password);
-        int max_retries = 10; // Thời gian chờ tối đa 10 giây (10 lần delay 1 giây)
-        int retries = 0;
-        while (WiFi.status() != WL_CONNECTED && retries < max_retries) {
-            delay(1000);
-            printf("Đang kết nối WiFi...\n");
-            retries++;
-        }
-        if (WiFi.status() == WL_CONNECTED) {
-            printf("WiFi đã kết nối!\n");
-            wifi_disconnect = false;
-        } else {
-            printf("Kết nối WiFi không thành công!\n");
-        }
-        wifi_disconnect = false;
-      } else {
-        WiFi.disconnect();
-        printf("WiFi đã ngắt kết nối!\n");
-        wifi_disconnect = true;
-      }
-      delay(2000);
-      Screen = 1;
-      subScreen = 0;
-    }
-  }
-  if (Screen == 3) {
     if (subScreen == 0) {
       if (bt_disconnect == false) {
         BLEDevice::stopAdvertising();
@@ -515,6 +607,23 @@ void watchtask() {
         printf("BT đã kết nối!\n");
         bt_disconnect = false;
       }
+      delay(2000);
+      Screen = 1;
+      subScreen = 0;
+      faceChange = true;
+    }
+  }
+  if (Screen == 3) {
+    if (subScreen == 0) {
+      // if (bt_disconnect == false) {
+      //   BLEDevice::stopAdvertising();
+      //   printf("BT đã ngắt kết nối!\n");
+      //   bt_disconnect = true;
+      // } else {
+      //   BLEDevice::startAdvertising();
+      //   printf("BT đã kết nối!\n");
+      //   bt_disconnect = false;
+      // }
       delay(2000);
       Screen = 1;
       subScreen = 1;
@@ -530,6 +639,9 @@ void watchtask() {
     if (subScreen == 1) {
       heartRateResultScreen();
     }
+  }
+  if (Screen == 6) {
+    compassApp();
   }
 }
 

@@ -2,6 +2,7 @@
 #include "heartRate.h"
 #include "heartRateApp.h"
 #include "spo2_algorithm.h"
+#include "heartrate_png.h"  
 
 MAX30105 particleSensor;
 
@@ -14,7 +15,7 @@ int32_t spo2;
 int8_t validSPO2;
 int32_t heartRate;
 int8_t validHeartRate;
-
+int16_t rc_heartapp;  
 
 void heartRateApp() {
   if (faceChange == true) {
@@ -55,13 +56,22 @@ void heartRateApp() {
 
 void heartRateInitScreen() {
   if (faceChange == true) {
-    tft.fillScreen(TFT_BLACK);
-    faceChange = false;
-  }
-  tft.setTextSize(3);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setCursor(10, 10);
-  tft.printf("HEART RATE\n");
+      tft.fillScreen(TFT_BLACK);
+      rc_heartapp = png.openFLASH((uint8_t *)heartrate_png, sizeof(heartrate_png), pngDraw);
+      if (rc_heartapp == PNG_SUCCESS) {
+          tft.startWrite();
+          rc_heartapp = png.decode(NULL, 0);
+          tft.endWrite();
+      }
+      tft.setTextSize(3);
+      tft.setTextColor(TFT_RED, TFT_BLACK); 
+      String stopwatch = "HEART RATE";
+      int textWidth_stopwatch = tft.textWidth(stopwatch);  // Tính chiều rộng của chuỗi
+      int x_stopwatch = (tft.width() - textWidth_stopwatch) / 2; // Căn giữa trên toàn bộ màn hình
+      tft.setCursor(x_stopwatch, 200);
+      tft.printf("%s", stopwatch);
+      faceChange = false;
+    }
 }
 
 void heartRateResultScreen() {
