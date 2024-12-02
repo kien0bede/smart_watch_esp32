@@ -16,10 +16,16 @@ String WT_IN = "";
 BLECharacteristic *pCharacteristic;
 
 class MyCallbacks : public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-        BT_IN = pCharacteristic->getValue().c_str();
-        WT_IN = pCharacteristic->getValue().c_str();
-        newData = true;
+    void onWrite(BLECharacteristic *pCharacteristic) override {
+        std::string value = pCharacteristic->getValue();  // Lưu giá trị Bluetooth nhận được
+        if (value.length() == 13) {  // Kiểm tra độ dài chuỗi
+            BT_IN = String(pCharacteristic->getValue().c_str());
+            WT_IN = String(pCharacteristic->getValue().c_str());
+            newData = true;
+            printf("Data received: %s\n", BT_IN.c_str());  // Debug thông tin nhận
+        } else {
+            printf("Error: Invalid data length.\n");
+        }
     }
 };
 
@@ -38,7 +44,7 @@ void initBLE() {
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);  // Tương thích với iPhone
+    pAdvertising->setMinPreferred(0x06);
     pAdvertising->setMinPreferred(0x12);
 
     BLEDevice::startAdvertising();

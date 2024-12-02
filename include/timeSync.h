@@ -1,5 +1,5 @@
-#ifndef __TIME_COUNT_H__
-#define __TIME_COUNT_H__
+#ifndef __TIME_SYNC_H__
+#define __TIME_SYNC_H__
 
 #include <RTClib.h>
 

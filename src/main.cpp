@@ -46,8 +46,6 @@ int16_t bt_xpos = 150;
 int16_t bt_ypos = 0;
 
 int16_t rc_exit;
-int16_t rc_sync;
-
 
 #define SCL_PIN 40
 #define SDA_PIN 41
@@ -80,6 +78,13 @@ int Screen = 0;
 int subScreen = 0;
 bool faceChange = true;
 bool wifi_disconnect = true;
+
+#define ANALOG_PIN 1
+int sensorValue;
+int bat_percentage;
+float vRef = 3.3;
+float R1 = 200000.0;
+float R2 = 100000.0;
 
 #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
 #define WAKEUP_GPIO_2              GPIO_NUM_2     // Only RTC IO are allowed - ESP32 Pin example
@@ -323,11 +328,13 @@ void LongPress() {
     if (subScreen == 0) {
       Screen = 2;
       subScreen = 0;
+      faceChange = true;
       return;
     }
     if (subScreen == 1) {
       Screen = 3;
       subScreen = 0;
+      faceChange = true;
       return;
     }
     if (subScreen == 2) {
@@ -336,6 +343,12 @@ void LongPress() {
       faceChange = true;
       return;
     }
+  }
+  if (Screen == 3) {
+    Screen = 1;
+    subScreen = 1;
+    faceChange = true;
+    return;
   }
   if (Screen == 4) {
     resetTime();
@@ -447,8 +460,32 @@ void hideBluetoothIcon() {
   tft.fillRect(bt_xpos, bt_ypos, 32, 32, TFT_BLACK); // Xóa icon bằng cách vẽ nền đen
 }
 
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 void watchFace() {
   DateTime now = rtc.now();
+
+  sensorValue = analogRead(ANALOG_PIN);
+
+  float voltage = (float)sensorValue * (vRef / 4095.0);
+
+  float actualVoltage = voltage * ((R1 + R2) / R2);
+ 
+  bat_percentage = mapfloat(actualVoltage, 2.8, 4.2, 0, 100);
+ 
+  if (bat_percentage >= 100)
+  {
+    bat_percentage = 100;
+  }
+  if (bat_percentage <= 0)
+  {
+    bat_percentage = 1;
+  }
+
+  printf("Analog Value = %d\t Output Voltage = %.2f\t Battery Percentage = %d\n", sensorValue, actualVoltage, bat_percentage);
 
   if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
@@ -559,23 +596,7 @@ void watchtask() {
     if (subScreen == 0) {
       bluetoothInitScreen();
     } else if (subScreen == 1) {
-      if (faceChange == true) {
-        tft.fillScreen(TFT_BLACK);
-        rc_sync = png.openFLASH((uint8_t *)sync_png, sizeof(sync_png), pngDraw);
-        if (rc_sync == PNG_SUCCESS) {
-            tft.startWrite();
-            rc_sync = png.decode(NULL, 0);
-            tft.endWrite();
-        }
-        tft.setTextSize(3);
-        tft.setTextColor(TFT_WHITE, TFT_BLACK); 
-        String stopwatch = "SYNC TIME";
-        int textWidth_stopwatch = tft.textWidth(stopwatch);
-        int x_stopwatch = (tft.width() - textWidth_stopwatch) / 2;
-        tft.setCursor(x_stopwatch, 200);
-        tft.printf("%s", stopwatch);
-        faceChange = false;
-      }
+      timeSyncInitScreen();
     } else if (subScreen == 2) {
       if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
@@ -615,18 +636,7 @@ void watchtask() {
   }
   if (Screen == 3) {
     if (subScreen == 0) {
-      // if (bt_disconnect == false) {
-      //   BLEDevice::stopAdvertising();
-      //   printf("BT đã ngắt kết nối!\n");
-      //   bt_disconnect = true;
-      // } else {
-      //   BLEDevice::startAdvertising();
-      //   printf("BT đã kết nối!\n");
-      //   bt_disconnect = false;
-      // }
-      delay(2000);
-      Screen = 1;
-      subScreen = 1;
+      timeSyncApp();
     }
   }
   if (Screen == 4) {
