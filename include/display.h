@@ -6,6 +6,9 @@
 
 #define TFT_BLK_PIN 14
 
+typedef unsigned char UBYTE;
+
+extern UBYTE buf[10];
 extern TFT_eSPI tft;
 extern TFT_eSprite img;
 extern PNG png;

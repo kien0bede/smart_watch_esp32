@@ -35,6 +35,9 @@
 #include "exit_png.h"
 #include "alarmApp.h"
 #include "icon_alarm_png.h"
+#include "PCF8563.h"
+
+UBYTE buf[10];
 
 #define MAX_IMAGE_WIDTH 240
 // Các toạ độ cho background và icon Bluetooth
@@ -57,8 +60,6 @@ int16_t rc_exit;
 #define BUTTON_PIN 12
 
 RTC_DATA_ATTR int boot_count = 0;
-
-// RTC_PCF8563 rtc;
 
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite img = TFT_eSprite(&tft);
@@ -454,22 +455,20 @@ void setup() {
 
   pinMode(buzzerPin, OUTPUT);
 
-  if(!rtc.begin()) {
-    printf("Không thể kết nối với PCF8563!\n");
-  }
-
   boot_count++;
   printf("Số lần khởi động: %d\n", boot_count);
 
   if (boot_count == 1) {
-    DateTime rtcTime = rtc.now();
-    printf("Thời gian từ DS1307 sau khi thức dậy: ");
-    printf(rtcTime.timestamp().c_str());
+    PCF8563_Init();
+    PCF8563_Set_Time(10, 10, 10);
+    PCF8563_Set_Days(2025, 10, 10);
+    PCF8563_Get_Time(buf);
+    PCF8563_Get_Days(&buf[3]);
   }
   else {
-    DateTime rtcTime = rtc.now();
-    printf("Thời gian từ DS1307 sau khi thức dậy: ");
-    printf(rtcTime.timestamp().c_str());
+    PCF8563_Init();
+    PCF8563_Get_Time(buf);
+    PCF8563_Get_Days(&buf[3]);
   }
   delay(100);
 }
@@ -539,8 +538,8 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 }
 
 void watchFace() {
-  DateTime now = rtc.now();
-
+  PCF8563_Get_Time(buf);
+  PCF8563_Get_Days(&buf[3]);
   sensorValue = analogRead(ANALOG_PIN);
 
   float voltage = (float)sensorValue * (vRef / 4095.0);
@@ -585,17 +584,19 @@ void watchFace() {
   tft.setTextSize(6);
   tft.setTextColor(TFT_CYAN, TFT_BLACK); 
   tft.printf("%02d:%02d", 
-    now.hour(),    // Giờ
-    now.minute()  // Phút
+    buf[2],    // Giờ
+    buf[1]  // Phút
   );
 
   // Hiển thị ngày tháng năm
   tft.setTextSize(2);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   // Tạo chuỗi ngày/tháng/năm
-  String dateStr = String(now.day(), DEC) + "/" + 
-                  String(now.month(), DEC) + "/" + 
-                  String(now.year(), DEC);
+  String year = String(buf[6]) + String(buf[5] < 10 ? "0" + String(buf[5]) : String(buf[5]));
+  String month = (buf[4] < 10 ? "0" : "") + String(buf[4]);
+  String day = (buf[3] < 10 ? "0" : "") + String(buf[3]);
+
+  String dateStr = day + "/" + month + "/" + year;
 
   int16_t textWidth = tft.textWidth(dateStr.c_str()); // Lấy chiều rộng của văn bản
   // Tính toán vị trí căn lề cách đều

@@ -2,8 +2,7 @@
 #define __ALARM_APP_H__
 
 #include <RTClib.h>
-
-extern RTC_PCF8563 rtc;
+#include <PCF8563.h>
 
 extern RTC_DATA_ATTR int hour_alarm;
 extern RTC_DATA_ATTR int minute_alarm;

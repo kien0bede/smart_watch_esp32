@@ -7,6 +7,7 @@
 #include "timeSync.h"
 #include <ble.h>
 #include "sync_png.h"
+#include <PCF8563.h>
 
 int16_t rc_sync;
 
@@ -57,10 +58,13 @@ void timeSyncApp() {
             
             // Debug thông tin thời gian
             printf("Year: %d, Month: %d, Date: %d, Hour: %d, Minute: %d, Second: %d\n",
-                   Year, Month, Date, Hour, Minute, Second);
-            
-            // Thiết lập thời gian trên RTC
-            rtc.adjust(DateTime(Year, Month, Date, Hour, Minute, Second));
+                Year, Month, Date, Hour, Minute, Second);
+
+            PCF8563_Set_Time(Hour, Minute, Second);
+            PCF8563_Set_Days(Year, Month, Date);
+            PCF8563_Get_Time(buf);
+            PCF8563_Get_Days(&buf[3]);
+
             printf("The Time Has Been Set\n");
             counter = 0;
 

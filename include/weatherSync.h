@@ -2,8 +2,7 @@
 #define __TIME_COUNT_H__
 
 #include <RTClib.h>
-
-extern RTC_PCF8563 rtc;
+#include <PCF8563.h>
 
 extern int minTemp;
 extern int maxTemp;

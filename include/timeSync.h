@@ -2,8 +2,7 @@
 #define __TIME_SYNC_H__
 
 #include <RTClib.h>
-
-extern RTC_PCF8563 rtc;
+#include <PCF8563.h>
 
 // Count times
 void timeSyncApp();

@@ -38,14 +38,13 @@ void alarmApp() {
         tft.fillScreen(TFT_BLACK);
         faceChange = false;
     }
-    // Hiển thị giờ phút giây
-    DateTime now = rtc.now();
+    PCF8563_Get_Time(buf);
     tft.setCursor(30, 20);
     tft.setTextSize(3);
     tft.setTextColor(TFT_CYAN, TFT_BLACK); 
     tft.printf("%02d:%02d", 
-        now.hour(),    // Giờ
-        now.minute()  // Phút
+        buf[2],    // Giờ
+        buf[1]  // Phút
     );
     tft.setCursor(30, 80);
     tft.setTextSize(3);
