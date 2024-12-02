@@ -33,6 +33,8 @@
 #include "heartrate_png.h"
 #include "sync_png.h"
 #include "exit_png.h"
+#include "alarmApp.h"
+#include "icon_alarm_png.h"
 
 #define MAX_IMAGE_WIDTH 240
 // Các toạ độ cho background và icon Bluetooth
@@ -42,8 +44,11 @@ int16_t ypos;
 int16_t bg_xpos = 0;
 int16_t bg_ypos = 0;
 
-int16_t bt_xpos = 150;
+int16_t bt_xpos = 170;
 int16_t bt_ypos = 0;
+
+int16_t alarm_xpos = 145;
+int16_t alarm_ypos = 0;
 
 int16_t rc_exit;
 
@@ -53,7 +58,7 @@ int16_t rc_exit;
 
 RTC_DATA_ATTR int boot_count = 0;
 
-RTC_PCF8563 rtc;
+// RTC_PCF8563 rtc;
 
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite img = TFT_eSprite(&tft);
@@ -86,12 +91,23 @@ float vRef = 3.3;
 float R1 = 200000.0;
 float R2 = 100000.0;
 
+int buzzerPin = 45;
+
+const int rtc_int = 21;
+
+volatile bool alarm_ready = false;
+
+void IRAM_ATTR onInterruptRTC() {
+  alarm_ready = true;
+}
+
 #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
 #define WAKEUP_GPIO_2              GPIO_NUM_2     // Only RTC IO are allowed - ESP32 Pin example
-#define WAKEUP_GPIO_12              GPIO_NUM_12     // Only RTC IO are allowed - ESP32 Pin example
+#define WAKEUP_GPIO_12             GPIO_NUM_12    // Only RTC IO are allowed - ESP32 Pin example
+// #define WAKEUP_GPIO_INT_RTC        GPIO_NUM_21    // INT từ PCF8563
 
 // Define bitmask for multiple GPIOs
-uint64_t bitmask = BUTTON_PIN_BITMASK(WAKEUP_GPIO_2) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_12);
+uint64_t bitmask = BUTTON_PIN_BITMASK(WAKEUP_GPIO_2) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_12) /*| BUTTON_PIN_BITMASK(WAKEUP_GPIO_INT_RTC)*/;
 
 // MPU registers
 #define SIGNAL_PATH_RESET  0x68
@@ -263,26 +279,31 @@ void ShortClick() {
     }
 
     if (subScreen == 1) {
-      particleSensor.shutDown();
       faceChange = true;
     } else if (subScreen == 2) {
-      particleSensor.shutDown();
       faceChange = true;
     } else if (subScreen == 3) {
-      particleSensor.shutDown();
       faceChange = true;
     }
   }
   if (Screen == 1) {
     subScreen++;
     faceChange = true;
-    if (subScreen > 2) {
+    if (subScreen > 3) {
       subScreen = 0;
       faceChange = true;
     }
   }
   if (Screen == 4) {
     startStop();
+  }
+  if (Screen == 7) {
+    subScreen++;
+    faceChange = true;
+    if (subScreen > 3) {
+      subScreen = 0;
+      faceChange = true;
+    }
   }
   pressState = 1;
 }
@@ -338,6 +359,12 @@ void LongPress() {
       return;
     }
     if (subScreen == 2) {
+      Screen = 7;
+      subScreen = 0;
+      faceChange = true;
+      return;
+    }
+    if (subScreen == 3) {
       Screen = 0;
       subScreen = 0;
       faceChange = true;
@@ -358,7 +385,6 @@ void LongPress() {
     return;
   }
   if (Screen == 5) {
-    particleSensor.shutDown();
     Screen = 0;
     subScreen = 2;
     faceChange = true;
@@ -369,6 +395,30 @@ void LongPress() {
     subScreen = 3;
     faceChange = true;
     return;
+  }
+  if (Screen == 7) {
+    if (subScreen == 0) {
+      hour_alarm++;
+      if (hour_alarm > 23) {
+        hour_alarm = 0;
+      }
+    } else if (subScreen == 1) {
+      minute_alarm++;
+      if (minute_alarm > 59) {
+        minute_alarm = 0;
+      }
+    } else {
+      if (subScreen == 2) {
+        alarm_on = true;
+      }
+      else {
+        alarm_on = false;
+      }
+      Screen = 1;
+      subScreen = 2;
+      faceChange = true;
+      return;
+    }
   }
   pressState = 1;
   lastPressed = millis();
@@ -387,6 +437,7 @@ void setup() {
   particleSensor.setup(); // Thiết lập với cấu hình mặc định
   particleSensor.setPulseAmplitudeRed(0x0A); // Độ sáng LED đỏ thấp
   particleSensor.setPulseAmplitudeIR(0x0A);  // Độ sáng LED hồng ngoại thấp
+  particleSensor.shutDown();
   // Init button
   button.attachClick(ShortClick);
   button.attachLongPressStart(LongPress);
@@ -400,6 +451,8 @@ void setup() {
   rtc_gpio_hold_dis((gpio_num_t) TFT_BLK_PIN);
   pinMode(TFT_BLK_PIN, OUTPUT);
   digitalWrite(TFT_BLK_PIN, HIGH);
+
+  pinMode(buzzerPin, OUTPUT);
 
   if(!rtc.begin()) {
     printf("Không thể kết nối với PCF8563!\n");
@@ -428,6 +481,7 @@ void pngDraw(PNGDRAW *pDraw) {
 }
 
 int16_t rc_bluetooth;
+int16_t rc_alrm;
 int16_t rc_watchscreen;
 void WatchFaceScreen() {
   xpos = bg_xpos;
@@ -457,7 +511,26 @@ void showBluetoothIcon() {
 }
 
 void hideBluetoothIcon() {
-  tft.fillRect(bt_xpos, bt_ypos, 32, 32, TFT_BLACK); // Xóa icon bằng cách vẽ nền đen
+  tft.fillRect(bt_xpos, bt_ypos, 25, 25, TFT_BLACK); // Xóa icon bằng cách vẽ nền đen
+}
+
+void showAlarmIcon() {
+  xpos = alarm_xpos;
+  ypos = alarm_ypos;
+  
+  rc_alrm = png.openFLASH((uint8_t *)icon_alarm_png, sizeof(icon_alarm_png), pngDraw);
+  if (rc_alrm == PNG_SUCCESS) {
+    tft.startWrite();
+    rc_alrm = png.decode(NULL, 0);
+    tft.endWrite();
+  }
+  // Đặt điểm vẽ về 0:0
+  xpos = 0;
+  ypos = 0;
+}
+
+void hideAlarmIcon() {
+  tft.fillRect(alarm_xpos, alarm_ypos, 25, 25, TFT_BLACK); // Xóa icon bằng cách vẽ nền đen
 }
 
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
@@ -485,7 +558,10 @@ void watchFace() {
     bat_percentage = 1;
   }
 
-  printf("Analog Value = %d\t Output Voltage = %.2f\t Battery Percentage = %d\n", sensorValue, actualVoltage, bat_percentage);
+  tft.setCursor(200, 4);
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_BLACK, TFT_GREEN);
+  tft.printf(" %02d", bat_percentage);
 
   if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
@@ -497,6 +573,13 @@ void watchFace() {
   } else {
         hideBluetoothIcon();
   }
+
+  if (alarm_on == true) {
+    showAlarmIcon();
+  } else {
+    hideAlarmIcon();
+  }
+  
   // Hiển thị giờ phút giây
   tft.setCursor(35, 50);
   tft.setTextSize(6);
@@ -597,7 +680,11 @@ void watchtask() {
       bluetoothInitScreen();
     } else if (subScreen == 1) {
       timeSyncInitScreen();
-    } else if (subScreen == 2) {
+    }
+    else if (subScreen == 2) {
+      alarmInitScreen();
+    }
+    else if (subScreen == 3) {
       if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
         rc_exit = png.openFLASH((uint8_t *)exit_png, sizeof(exit_png), pngDraw);
@@ -652,6 +739,9 @@ void watchtask() {
   }
   if (Screen == 6) {
     compassApp();
+  }
+  if (Screen == 7) {
+    alarmApp();
   }
 }
 

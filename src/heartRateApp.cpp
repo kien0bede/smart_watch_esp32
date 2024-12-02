@@ -46,6 +46,7 @@ void heartRateApp() {
       if (validHeartRate && validSPO2) {
         Screen = 5;
         subScreen = 1;
+        faceChange = true;
       } else {
         printf("Dữ liệu không hợp lệ.\n");
       }
@@ -76,6 +77,7 @@ void heartRateInitScreen() {
 
 void heartRateResultScreen() {
   if (faceChange == true) {
+    particleSensor.shutDown();
     tft.fillScreen(TFT_BLACK);
     faceChange = false;
   }
