@@ -548,11 +548,14 @@ void setup() {
     PCF8563_Set_Days(2025, 10, 10);
     PCF8563_Get_Time(buf);
     PCF8563_Get_Days(&buf[3]);
-  }
-  else {
+  } else {
     PCF8563_Init();
     PCF8563_Get_Time(buf);
     PCF8563_Get_Days(&buf[3]);
+    if (alarm_on == true) {
+      PCF8563_Set_Alarm(hour_alarm, minute_alarm);
+      PCF8563_Alarm_Enable();
+    }
   }
 
   if (boot_count == 1) {
