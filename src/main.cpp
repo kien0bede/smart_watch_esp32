@@ -503,7 +503,9 @@ void setup() {
   // Init gia toc
   // configureMPU(5);
   mpu.initialize();
-  mpu.setIntEnabled(false);
+  mpu.setIntMotionEnabled(true);
+  mpu.setMotionDetectionThreshold(30);
+  mpu.setMotionDetectionDuration(50);
   // Init BT
   initBLE();
   // Init la ban
