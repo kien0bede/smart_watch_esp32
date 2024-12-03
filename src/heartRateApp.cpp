@@ -3,6 +3,7 @@
 #include "heartRateApp.h"
 #include "spo2_algorithm.h"
 #include "heartrate_png.h"  
+#include "heart_rate_result_png.h"
 
 MAX30105 particleSensor;
 
@@ -16,18 +17,23 @@ int8_t validSPO2;
 int32_t heartRate;
 int8_t validHeartRate;
 int16_t rc_heartapp;  
+int16_t rc_heartresult;
 
 void heartRateApp() {
   if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
+        rc_heartresult = png.openFLASH((uint8_t *)heart_rate_result_png, sizeof(heart_rate_result_png), pngDraw);
+        if (rc_heartresult == PNG_SUCCESS) {
+            tft.startWrite();
+            rc_heartresult = png.decode(NULL, 0);
+            tft.endWrite();
+        }
+        tft.setTextSize(4);
+        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        tft.setCursor(60, 200);
+        tft.printf("START");
         faceChange = false;
   }
-
-  tft.setTextSize(3);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setCursor(10, 10);
-
-  tft.printf("Please Wait...");
   // Kiểm tra có dữ liệu mới từ cảm biến
   if (particleSensor.check() != 0) {
     // Đọc dữ liệu và lưu vào bộ đệm
@@ -43,7 +49,7 @@ void heartRateApp() {
       maxim_heart_rate_and_oxygen_saturation(irBuffer, 100, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
 
       // In kết quả
-      if (validHeartRate && validSPO2) {
+      if (heartRate < 180 && spo2 > 90) {
         Screen = 5;
         subScreen = 1;
         faceChange = true;
@@ -79,11 +85,23 @@ void heartRateResultScreen() {
   if (faceChange == true) {
     particleSensor.shutDown();
     tft.fillScreen(TFT_BLACK);
+    rc_heartresult = png.openFLASH((uint8_t *)heart_rate_result_png, sizeof(heart_rate_result_png), pngDraw);
+    if (rc_heartresult == PNG_SUCCESS) {
+        tft.startWrite();
+        rc_heartresult = png.decode(NULL, 0);
+        tft.endWrite();
+    }
     faceChange = false;
   }
   tft.setTextSize(3);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setCursor(10, 10);
-  tft.printf("BPM: %d, SPO2: %d\n", heartRate, spo2);
+  tft.setCursor(20, 155);
+  tft.printf("%d", heartRate);
+  tft.setCursor(170, 155);
+  tft.printf("%d", spo2);
+  tft.setTextSize(4);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.setCursor(80, 200);
+  tft.printf("STOP");
   preBPM = heartRate;
 }
