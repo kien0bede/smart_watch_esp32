@@ -85,4 +85,5 @@ void heartRateResultScreen() {
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setCursor(10, 10);
   tft.printf("BPM: %d, SPO2: %d\n", heartRate, spo2);
+  preBPM = heartRate;
 }

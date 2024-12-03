@@ -16,6 +16,8 @@ extern bool faceChange;
 extern int Screen;
 extern int subScreen;
 extern unsigned long lastWake;
+extern RTC_DATA_ATTR int totalStep;
+extern RTC_DATA_ATTR int preBPM;
 void pngDraw(PNGDRAW *pDraw);
 
 #endif
