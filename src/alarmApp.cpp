@@ -46,29 +46,40 @@ void alarmApp() {
         buf[2],    // Giờ
         buf[1]  // Phút
     );
-    tft.setCursor(30, 80);
+    tft.setCursor(30, 60);
+    tft.setTextSize(3);
+    tft.setTextColor(TFT_RED, TFT_BLACK); 
+    tft.printf("%02d:%02d", 
+        hour_alarm,    // Giờ
+        minute_alarm  // Phút
+    );
+    tft.setCursor(160, 40);
     tft.setTextSize(3);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.printf(alarm_on ? " ON" : " OFF");
+    tft.printf(alarm_on ? "ON" : "OFF");
     if (subScreen == 0) {
         tft.setTextSize(3);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setCursor(10, 50);
+        tft.setCursor(30, 120);
+        tft.printf("Hour");
+        tft.setCursor(45, 160);
         tft.printf("%02d", hour_alarm);
     } else if (subScreen == 1) {
         tft.setTextSize(3);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setCursor(10, 50);
+        tft.setCursor(160, 120);
+        tft.printf("Min");
+        tft.setCursor(170, 160);
         tft.printf("%02d", minute_alarm);
     } else if (subScreen == 2) {
         tft.setTextSize(3);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setCursor(10, 50);
+        tft.setCursor(40, 200);
         tft.printf("Set Alarm");
     } else if (subScreen == 3) {
         tft.setTextSize(3);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setCursor(10, 50);
+        tft.setCursor(25, 200);
         tft.printf("Unset Alarm");
     }
 }

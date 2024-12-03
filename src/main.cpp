@@ -105,10 +105,10 @@ void IRAM_ATTR onInterruptRTC() {
 #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
 #define WAKEUP_GPIO_2              GPIO_NUM_2     // Only RTC IO are allowed - ESP32 Pin example
 #define WAKEUP_GPIO_12             GPIO_NUM_12    // Only RTC IO are allowed - ESP32 Pin example
-// #define WAKEUP_GPIO_INT_RTC        GPIO_NUM_21    // INT từ PCF8563
+#define WAKEUP_GPIO_21             GPIO_NUM_21    // INT từ PCF8563
 
 // Define bitmask for multiple GPIOs
-uint64_t bitmask = BUTTON_PIN_BITMASK(WAKEUP_GPIO_2) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_12) /*| BUTTON_PIN_BITMASK(WAKEUP_GPIO_INT_RTC)*/;
+uint64_t bitmask = BUTTON_PIN_BITMASK(WAKEUP_GPIO_2) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_12) | BUTTON_PIN_BITMASK(WAKEUP_GPIO_21);
 
 // MPU registers
 #define SIGNAL_PATH_RESET  0x68
@@ -259,6 +259,7 @@ void enter_sleep()
   analogWrite(TFT_BLK_PIN, 0);
   delay(100);
   rtc_gpio_hold_en((gpio_num_t) TFT_BLK_PIN);
+  rtc_gpio_hold_en(GPIO_NUM_21);
   rtc_gpio_hold_en(GPIO_NUM_12);
   esp_sleep_enable_ext1_wakeup(bitmask, ESP_EXT1_WAKEUP_ANY_LOW);
   esp_deep_sleep_start();
@@ -410,9 +411,12 @@ void LongPress() {
       }
     } else {
       if (subScreen == 2) {
+        PCF8563_Set_Alarm(hour_alarm, minute_alarm);
+        PCF8563_Alarm_Enable();
         alarm_on = true;
       }
       else {
+        PCF8563_Alarm_Disable();
         alarm_on = false;
       }
       Screen = 1;
@@ -453,14 +457,16 @@ void setup() {
   pinMode(TFT_BLK_PIN, OUTPUT);
   digitalWrite(TFT_BLK_PIN, HIGH);
 
+  pinMode(INT_PIN, INPUT_PULLUP);
+
   pinMode(buzzerPin, OUTPUT);
 
   boot_count++;
-  printf("Số lần khởi động: %d\n", boot_count);
+  printf("Count times: %d\n", boot_count);
 
   if (boot_count == 1) {
     PCF8563_Init();
-    PCF8563_Set_Time(10, 10, 10);
+    PCF8563_Set_Time(0, 0, 0);
     PCF8563_Set_Days(2025, 10, 10);
     PCF8563_Get_Time(buf);
     PCF8563_Get_Days(&buf[3]);
@@ -469,6 +475,17 @@ void setup() {
     PCF8563_Init();
     PCF8563_Get_Time(buf);
     PCF8563_Get_Days(&buf[3]);
+  }
+
+  if (boot_count == 1) {
+    hour_alarm = 0;
+    minute_alarm = 0;
+
+    PCF8563_Set_Alarm(hour_alarm, minute_alarm);
+    
+    PCF8563_Alarm_Disable();
+
+    alarm_on = false;
   }
   delay(100);
 }
