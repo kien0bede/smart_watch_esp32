@@ -39,6 +39,41 @@
 
 UBYTE buf[10];
 
+int GPIO_reason;
+
+// Định nghĩa tần số các nốt nhạc (Hz)
+#define NOTE_B3  247
+#define NOTE_C4  262
+#define NOTE_D4  294
+#define NOTE_E4  330
+#define NOTE_F4  349
+#define NOTE_G4  392
+#define NOTE_A4  440
+#define NOTE_B4  494
+#define NOTE_C5  523
+#define NOTE_D5  587
+#define NOTE_E5  659
+
+// Giai điệu Jingle Bells (danh sách các nốt nhạc và độ dài nốt)
+int melody[] = {
+  NOTE_E4, NOTE_E4, NOTE_E4, // Jingle bells
+  NOTE_E4, NOTE_E4, NOTE_E4, // Jingle bells
+  NOTE_E4, NOTE_G4, NOTE_C4, NOTE_D4, NOTE_E4, // Jingle all the way
+  NOTE_F4, NOTE_F4, NOTE_F4, NOTE_F4, // Oh what fun
+  NOTE_F4, NOTE_E4, NOTE_E4, NOTE_E4, NOTE_E4, // It is to ride
+  NOTE_E4, NOTE_D4, NOTE_D4, NOTE_E4, NOTE_D4, NOTE_G4 // In a one-horse open sleigh
+};
+
+// Độ dài của mỗi nốt (1 = nguyên nốt, 2 = nửa nốt, 4 = một phần tư, ...)
+int noteDurations[] = {
+  4, 4, 2, // Jingle bells
+  4, 4, 2, // Jingle bells
+  4, 4, 4, 4, 2, // Jingle all the way
+  4, 4, 4, 4, // Oh what fun
+  4, 4, 4, 4, 4, // It is to ride
+  4, 4, 4, 4, 2 // In a one-horse open sleigh
+};
+
 #define MAX_IMAGE_WIDTH 240
 // Các toạ độ cho background và icon Bluetooth
 int16_t xpos;
@@ -265,6 +300,11 @@ void enter_sleep()
   esp_deep_sleep_start();
 }
 
+void print_GPIO_wake_up(){
+  GPIO_reason = (int)(log(esp_sleep_get_ext1_wakeup_status()) / log(2));
+  printf("GPIO that triggered the wake up: GPIO %d\n", GPIO_reason);
+}
+
 void ShortClick() {
   printf("singleClick() detected.\n");
   unsigned long currentMillis = millis();
@@ -306,6 +346,12 @@ void ShortClick() {
       subScreen = 0;
       faceChange = true;
     }
+  }
+    if (Screen == 8) {
+    Screen = 0;
+    subScreen = 0;
+    faceChange = true;
+    return;
   }
   pressState = 1;
 }
@@ -457,12 +503,19 @@ void setup() {
   pinMode(TFT_BLK_PIN, OUTPUT);
   digitalWrite(TFT_BLK_PIN, HIGH);
 
-  pinMode(INT_PIN, INPUT_PULLUP);
+  attachInterrupt(INT_PIN, onInterruptRTC, FALLING);
 
   pinMode(buzzerPin, OUTPUT);
 
   boot_count++;
   printf("Count times: %d\n", boot_count);
+
+  print_GPIO_wake_up();
+
+  if (GPIO_reason == 21) {
+    Screen = 8;
+    subScreen = 0;
+  }
 
   if (boot_count == 1) {
     PCF8563_Init();
@@ -676,6 +729,13 @@ void walkApp() {
 
 void watchtask() {
   // fallDetect();
+  printf("RTC: %d\n", digitalRead(INT_PIN));
+  if(alarm_ready) {
+    alarm_ready = false;
+    Screen = 8;
+    subScreen = 0;
+    faceChange = true;
+  }
   if (pressState == 1 && digitalRead(0) == 1) {
     pressState = 0;
   }
@@ -760,6 +820,38 @@ void watchtask() {
   }
   if (Screen == 7) {
     alarmApp();
+  }
+  if (Screen == 8) {
+    if (faceChange == true) {
+      PCF8563_Init();
+      PCF8563_Set_Alarm(hour_alarm, minute_alarm);
+      PCF8563_Alarm_Enable();
+      tft.fillScreen(TFT_BLACK);
+      faceChange = false;
+    }
+    tft.setTextSize(3);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setCursor(10, 40);
+    tft.printf("Hello World!");
+    tft.setCursor(45, 80);
+    tft.printf("WAKE UP!");
+    lastWake = millis();
+
+    // Phát lần lượt các nốt trong giai điệu
+    for (int i = 0; i < sizeof(melody) / sizeof(melody[0]); i++) {
+      int noteDuration = 1000 / noteDurations[i]; // Tính độ dài của từng nốt
+      tone(buzzerPin, melody[i], noteDuration);   // Phát nốt nhạc
+
+      // Kiểm tra button trong khi chờ kết thúc nốt nhạc
+      unsigned long startTime = millis();
+      while (millis() - startTime < noteDuration) {
+        button.tick(); // Cập nhật trạng thái button
+        if (Screen == 0) { // Nếu button được nhấn
+          noTone(buzzerPin);      // Tắt âm thanh
+        }
+      }
+      noTone(buzzerPin); // Tắt buzzer
+    }
   }
 }
 
