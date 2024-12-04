@@ -39,7 +39,7 @@ void timeSyncApp() {
     tft.setTextSize(3);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setCursor(10, 10);
-    tft.printf("Time Sync Begin");
+    tft.printf("Time Sync...");
 
     int counter = 1;
     lastWake = millis();
@@ -66,6 +66,7 @@ void timeSyncApp() {
             PCF8563_Get_Days(&buf[3]);
 
             printf("The Time Has Been Set\n");
+            faceChange = true;
             counter = 0;
 
         } catch (...) {
@@ -77,6 +78,14 @@ void timeSyncApp() {
     }
 
     if (counter == 0) {
+        if (faceChange) {
+            tft.fillScreen(TFT_BLACK);
+            faceChange = false;
+        }
+        tft.setTextSize(3);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);
+        tft.setCursor(45, 10);
+        tft.printf("Finished!");
         delay(2000);
         Screen = 0;
         subScreen = 0;

@@ -37,6 +37,7 @@
 #include "icon_alarm_png.h"
 #include "PCF8563.h"
 #include "walkmpuApp.h"
+#include "watchSetting.h"
 
 UBYTE buf[10];
 
@@ -120,6 +121,9 @@ int subScreen = 0;
 bool faceChange = true;
 bool wifi_disconnect = true;
 
+RTC_DATA_ATTR int duration = 2;
+RTC_DATA_ATTR int brightness = 2;
+
 #define ANALOG_PIN 1
 int sensorValue;
 int bat_percentage;
@@ -193,7 +197,7 @@ void ShortClick() {
   if (Screen == 1) {
     subScreen++;
     faceChange = true;
-    if (subScreen > 3) {
+    if (subScreen > 4) {
       subScreen = 0;
       faceChange = true;
     }
@@ -214,6 +218,14 @@ void ShortClick() {
     subScreen = 0;
     faceChange = true;
     return;
+  }
+  if (Screen == 10) {
+    subScreen++;
+    faceChange = true;
+    if (subScreen > 2) {
+      subScreen = 0;
+      faceChange = true;
+    }
   }
   pressState = 1;
 }
@@ -280,6 +292,12 @@ void LongPress() {
       return;
     }
     if (subScreen == 3) {
+      Screen = 10;
+      subScreen = 0;
+      faceChange = true;
+      return;
+    }
+    if (subScreen == 4) {
       Screen = 0;
       subScreen = 0;
       faceChange = true;
@@ -351,6 +369,30 @@ void LongPress() {
       return;
     }
   }
+  if (Screen == 10) {
+    if (subScreen == 0) {
+      duration++;
+      faceChange = true;
+      if (duration > 5) {
+        duration = 1;
+        faceChange = true;
+      }
+    } else if (subScreen == 1) {
+      brightness++;
+      faceChange = true;
+      if (brightness > 5) {
+        brightness = 1;
+        faceChange = true;
+      }
+    } else if (subScreen == 2) {
+      Screen = 1;
+      subScreen = 3;
+      duration_brightness = int_duration_brightness;
+      analogWrite(TFT_BLK_PIN, brightness_level);
+      faceChange = true;
+      return;
+    }
+  }
   pressState = 1;
   lastPressed = millis();
 }
@@ -384,7 +426,7 @@ void setup() {
 
   rtc_gpio_hold_dis((gpio_num_t) TFT_BLK_PIN);
   pinMode(TFT_BLK_PIN, OUTPUT);
-  digitalWrite(TFT_BLK_PIN, HIGH);
+  analogWrite(TFT_BLK_PIN, brightness_level);
 
   attachInterrupt(INT_PIN, onInterruptRTC, FALLING);
 
@@ -601,7 +643,7 @@ void watchtask() {
   if (pressState == 1 && digitalRead(0) == 1) {
     pressState = 0;
   }
-  if (millis() - lastWake > 10000) {
+  if (millis() - lastWake > duration_brightness) {
     enter_sleep();
   }
   if (Screen == 0) {
@@ -627,6 +669,9 @@ void watchtask() {
       alarmInitScreen();
     }
     else if (subScreen == 3) {
+      watchSettingInitScreen();
+    }
+    else if (subScreen == 4) {
       if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
         rc_exit = png.openFLASH((uint8_t *)exit_png, sizeof(exit_png), pngDraw);
@@ -723,6 +768,9 @@ void watchtask() {
     } else if (subScreen == 1) {
       walkResult();
     }
+  }
+  if (Screen == 10) {
+    watchSettingApp();
   }
 }
 

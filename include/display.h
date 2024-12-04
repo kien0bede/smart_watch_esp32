@@ -19,5 +19,7 @@ extern unsigned long lastWake;
 extern RTC_DATA_ATTR int totalStep;
 extern RTC_DATA_ATTR int preBPM;
 void pngDraw(PNGDRAW *pDraw);
+extern RTC_DATA_ATTR int duration;
+extern RTC_DATA_ATTR int brightness;
 
 #endif
