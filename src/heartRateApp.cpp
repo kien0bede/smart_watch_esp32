@@ -4,6 +4,10 @@
 #include "spo2_algorithm.h"
 #include "heartrate_png.h"  
 #include "heart_rate_result_png.h"
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include "ble.h"
 
 MAX30105 particleSensor;
 
@@ -92,6 +96,7 @@ void heartRateResultScreen() {
         tft.endWrite();
     }
     faceChange = false;
+    dataSent = false;  // Reset flag khi vào màn hình mới
   }
   tft.setTextSize(3);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -103,5 +108,13 @@ void heartRateResultScreen() {
   tft.setTextColor(TFT_RED, TFT_BLACK);
   tft.setCursor(80, 200);
   tft.printf("STOP");
+
+  if (!dataSent) {  // Chỉ gửi nếu chưa gửi
+    char bleData[8];
+    snprintf(bleData, sizeof(bleData), "HR%03d%02d", heartRate, spo2);
+    writeBLEData(bleData);
+    dataSent = true;  // Đánh dấu đã gửi
+  }
+  
   preBPM = heartRate;
 }

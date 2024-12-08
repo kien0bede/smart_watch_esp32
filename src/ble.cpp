@@ -8,12 +8,14 @@
 
 int16_t rc_bt;  
 bool bt_disconnect = false;
+bool dataSent = false;
 bool newData = false;
 String stopwatch = "";
 String BT_IN = "";
 String WT_IN = "";
 
 BLECharacteristic *pCharacteristic;
+bool deviceConnected = false;
 
 class MyCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) override {
@@ -29,16 +31,52 @@ class MyCallbacks : public BLECharacteristicCallbacks {
     }
 };
 
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+        printf("Bluetooth connected!\n");
+        deviceConnected = true;
+    }
+
+    void onDisconnect(BLEServer* pServer) {
+        deviceConnected = false;
+        printf("Bluetooth disconnected!\n");
+        // Khởi động lại advertising khi bị ngắt kết nối
+        pServer->startAdvertising();
+    }
+};
+
+void writeBLEData(const char* data) {
+    if (dataSent) return;  // Nếu đã gửi thành công rồi thì return luôn
+    
+    printf("Connection status: %d, Characteristic: %p\n", deviceConnected, pCharacteristic);
+    if (deviceConnected && pCharacteristic != NULL) {
+        try {
+            pCharacteristic->setValue((uint8_t*)data, strlen(data));
+            pCharacteristic->notify();
+            printf("Sent BLE data: %s\n", data);
+            delay(10);
+            dataSent = true;  // Đánh dấu là đã gửi thành công
+        } catch (...) {
+            printf("Error sending BLE data\n");
+        }
+    } else {
+        printf("Device not connected or characteristic not initialized\n");
+    }
+}
+
 void initBLE() {
     BLEDevice::init("SmartWatch");
     BLEServer *pServer = BLEDevice::createServer();
     BLEService *pService = pServer->createService(SERVICE_UUID);
-    BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-                                            CHARACTERISTIC_UUID,
-                                            BLECharacteristic::PROPERTY_READ |
-                                            BLECharacteristic::PROPERTY_WRITE
-                                        );
+    // Bỏ từ khóa BLECharacteristic* để sử dụng biến global
+    pCharacteristic = pService->createCharacteristic(
+                        CHARACTERISTIC_UUID,
+                        BLECharacteristic::PROPERTY_READ |
+                        BLECharacteristic::PROPERTY_WRITE | 
+                        BLECharacteristic::PROPERTY_NOTIFY
+                    );
     pCharacteristic->setCallbacks(new MyCallbacks());
+    pServer->setCallbacks(new MyServerCallbacks());
     pService->start();
 
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();

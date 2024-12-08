@@ -401,9 +401,10 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   // Init gia toc
   mpu.initialize();
+  mpu.setInterruptMode(1);
   mpu.setIntMotionEnabled(true);
-  mpu.setMotionDetectionThreshold(30);
-  mpu.setMotionDetectionDuration(50);
+  mpu.setMotionDetectionThreshold(5);
+  mpu.setMotionDetectionDuration(10);
   // Init BT
   initBLE();
   // Init la ban
