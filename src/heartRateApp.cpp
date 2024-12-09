@@ -110,8 +110,8 @@ void heartRateResultScreen() {
   tft.printf("STOP");
 
   if (!dataSent) {  // Chỉ gửi nếu chưa gửi
-    char bleData[8];
-    snprintf(bleData, sizeof(bleData), "HR%03d%02d", heartRate, spo2);
+    char bleData[11];
+    snprintf(bleData, sizeof(bleData), "HR%03d%03d", heartRate, spo2);
     writeBLEData(bleData);
     dataSent = true;  // Đánh dấu đã gửi
   }

@@ -2,6 +2,7 @@
 #include "walkmpuApp.h"
 #include "step_png.h"  
 #include "foot_steps_result_png.h"
+#include "ble.h"
 
 MPU6050 mpu(0x69);
 
@@ -98,11 +99,21 @@ void walkResult() {
     tft.setTextColor(TFT_RED, TFT_BLACK);
     tft.setCursor(80, 200);
     tft.printf("STOP");
-    totalStep += stepCount;
-    stepCount = 0;
-    distance = 0;
     faceChange = false;
+    dataSent = false;
   }
+
+  if (!dataSent) {  // Chỉ gửi nếu chưa gửi
+    char bleData[10];
+    snprintf(bleData, sizeof(bleData), "W%04d%04d", stepCount, distance);
+    if (stepCount > 0) {
+      writeBLEData(bleData);
+    }
+    dataSent = true;  // Đánh dấu đã gửi
+  }
+  totalStep += stepCount;
+  stepCount = 0;
+  distance = 0;
 }
 
 void walkInitScreen() {
