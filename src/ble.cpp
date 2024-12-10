@@ -7,7 +7,7 @@
 #include "bluetooth_not_available_png.h"
 
 int16_t rc_bt;  
-bool bt_disconnect = false;
+RTC_DATA_ATTR bool bt_disconnect = false;
 bool dataSent = false;
 bool newData = false;
 String stopwatch = "";
@@ -85,8 +85,11 @@ void initBLE() {
     pAdvertising->setMinPreferred(0x06);
     pAdvertising->setMinPreferred(0x12);
 
-    BLEDevice::startAdvertising();
-    bt_disconnect = false;
+    if (bt_disconnect == true) {
+        BLEDevice::stopAdvertising();
+    } else {
+        BLEDevice::startAdvertising();
+    }
 }
 
 void bluetoothInitScreen() {

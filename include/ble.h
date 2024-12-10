@@ -6,7 +6,7 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 
-extern bool bt_disconnect;
+extern RTC_DATA_ATTR bool bt_disconnect;
 extern bool newData;
 extern String BT_IN;
 extern String WT_IN;
