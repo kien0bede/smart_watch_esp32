@@ -265,6 +265,4 @@ void heartRateResultScreen() {
   beatAvg = 0; rateSpot = 0; lastBeat = 0;
   avered = 0; aveir = 0; sumirrms = 0; sumredrms = 0;
   SpO2 = 0; ESpO2 = 90.0;
-  
-  preBPM = int(beatAvg);
 }
