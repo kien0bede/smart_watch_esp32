@@ -247,6 +247,7 @@ void heartRateResultScreen() {
     tft.setTextColor(TFT_RED, TFT_BLACK);
     tft.setCursor(80, 200);
     tft.printf("STOP");
+    preBPM = int(beatAvg);
     faceChange = false;
     dataSent = false;  // Reset flag khi vào màn hình mới
   }
