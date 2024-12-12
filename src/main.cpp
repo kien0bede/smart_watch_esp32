@@ -205,6 +205,12 @@ void ShortClick() {
   if (Screen == 4) {
     startStop();
   }
+  if (Screen == 5) {
+    Screen = 5;
+    subScreen = 1;
+    faceChange = true;
+    return;
+  }
   if (Screen == 7) {
     subScreen++;
     faceChange = true;
@@ -410,10 +416,17 @@ void setup() {
   // Init la ban
   compassInit();
   // Init nhip tim
-  particleSensor.begin();
-  particleSensor.setup(); // Thiết lập với cấu hình mặc định
-  particleSensor.setPulseAmplitudeRed(0x0A); // Độ sáng LED đỏ thấp
-  particleSensor.setPulseAmplitudeIR(0x0A);  // Độ sáng LED hồng ngoại thấp
+  particleSensor.begin(Wire, I2C_SPEED_FAST);
+  byte ledBrightness = 0x7F;
+  byte sampleAverage = 4;
+  byte ledMode = 2;
+  int sampleRate = 800; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
+  int pulseWidth = 215; //Options: 69, 118, 215, 411
+  int adcRange = 16384; //Options: 2048, 4096, 8192, 16384
+  particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange);
+  particleSensor.enableDIETEMPRDY();
+  particleSensor.setPulseAmplitudeRed(0x0A);
+  particleSensor.setPulseAmplitudeGreen(0);
   particleSensor.shutDown();
   // Init button
   button.attachClick(ShortClick);
@@ -602,10 +615,10 @@ void watchFace() {
   tft.print(dateStr);
 
   /* Hiển thị Walk */
-  tft.setCursor(40, 180);
+  tft.setCursor(32, 180);
   tft.setTextSize(2);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.printf("WALK");
+  tft.printf("STEPS");
   /* Hiển thị BPM */
   tft.setCursor(160, 180);
   tft.setTextSize(2);

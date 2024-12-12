@@ -59,7 +59,7 @@ void compassApp() {
         img.setTextDatum(4);
         faceChange = false;    
     }
-
+    lastWake = millis();
     compass.read();
     int value = compass.getAzimuth();
     if (value < 0) {
