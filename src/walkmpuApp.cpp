@@ -24,9 +24,9 @@ const int WINDOW_SIZE = 10; // Kích thước cửa sổ trượt
 float accelValues[WINDOW_SIZE]; // Mảng lưu các giá trị gia tốc
 
 // Điều chỉnh các thông số
-const float THRESHOLD_LOW = 0.8;  // Ngưỡng dưới
-const float THRESHOLD_HIGH = 1.5; // Ngưỡng trên
-const unsigned long MIN_STEP_TIME = 500; // Thời gian tối thiểu giữa các bước (ms)
+const float THRESHOLD_LOW = 0.7;  // Ngưỡng dưới
+const float THRESHOLD_HIGH = 1.4; // Ngưỡng trên
+const unsigned long MIN_STEP_TIME = 200; // Thời gian tối thiểu giữa các bước (ms)
 
 // Biến trạng thái
 bool isStepUp = false;
@@ -127,13 +127,12 @@ void walkResult() {
     dataSent = false;
   }
 
-  if (!dataSent) {  // Chỉ gửi nếu chưa gửi
+  if (!dataSent) {
     char bleData[10];
     snprintf(bleData, sizeof(bleData), "W%04d%04d", stepCount, distance);
     if (stepCount > 0) {
       writeBLEData(bleData);
     }
-    dataSent = true;  // Đánh dấu đã gửi
   }
   totalStep += stepCount;
   stepCount = 0;

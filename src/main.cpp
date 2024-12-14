@@ -120,6 +120,7 @@ int Screen = 0;
 int subScreen = 0;
 bool faceChange = true;
 bool wifi_disconnect = true;
+bool lowBatteryNotified = false;
 
 RTC_DATA_ATTR int duration = 2;
 RTC_DATA_ATTR int brightness = 2;
@@ -409,8 +410,8 @@ void setup() {
   mpu.initialize();
   mpu.setInterruptMode(1);
   mpu.setIntMotionEnabled(true);
-  mpu.setMotionDetectionThreshold(5);
-  mpu.setMotionDetectionDuration(10);
+  mpu.setMotionDetectionThreshold(2);
+  mpu.setMotionDetectionDuration(8);
   // Init BT
   initBLE();
   // Init la ban
@@ -482,6 +483,7 @@ void setup() {
 
     alarm_on = false;
   }
+  lowBatteryNotified = false;
   delay(100);
 }
 
@@ -547,17 +549,25 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-void watchFace() {
-  PCF8563_Get_Time(buf);
-  PCF8563_Get_Days(&buf[3]);
+float readBatteryPercentage() {
   sensorValue = analogRead(ANALOG_PIN);
 
   float voltage = (float)sensorValue * (vRef / 4095.0);
 
   float actualVoltage = voltage * ((R1 + R2) / R2);
- 
-  bat_percentage = mapfloat(actualVoltage, 2.8, 4.2, 0, 100);
- 
+
+  // Tính phần trăm pin
+  if (actualVoltage >= 4.0) return 100.0;
+  if (actualVoltage <= 3.0) return 0.0;
+  return (actualVoltage - 3.0) * 100 / (4.0 - 3.0);
+}
+
+void watchFace() {
+  PCF8563_Get_Time(buf);
+  PCF8563_Get_Days(&buf[3]);
+
+  bat_percentage = readBatteryPercentage();
+
   if (bat_percentage >= 100)
   {
     bat_percentage = 100;
@@ -567,10 +577,21 @@ void watchFace() {
     bat_percentage = 1;
   }
 
+  if (bat_percentage <= 100 && deviceConnected && !lowBatteryNotified) {
+    if (pCharacteristic != nullptr) {
+      pCharacteristic->setValue("BAT_LOW");
+      pCharacteristic->notify();
+      lowBatteryNotified = true;
+      delay(100);
+    } else {
+      printf("Lỗi: pCharacteristic là null\n");
+    }
+  }
+
   tft.setCursor(200, 4);
   tft.setTextSize(2);
   tft.setTextColor(TFT_BLACK, TFT_GREEN);
-  tft.printf(" %02d", bat_percentage);
+  tft.printf("%03d", bat_percentage);
 
   if (faceChange == true) {
         tft.fillScreen(TFT_BLACK);
@@ -768,6 +789,7 @@ void watchtask() {
       // Kiểm tra button trong khi chờ kết thúc nốt nhạc
       unsigned long startTime = millis();
       while (millis() - startTime < noteDuration) {
+        lastWake = millis();
         button.tick(); // Cập nhật trạng thái button
         if (Screen == 0) { // Nếu button được nhấn
           noTone(buzzerPin);      // Tắt âm thanh
