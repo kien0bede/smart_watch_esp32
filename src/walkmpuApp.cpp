@@ -31,6 +31,8 @@ const unsigned long MIN_STEP_TIME = 200; // Thời gian tối thiểu giữa cá
 // Biến trạng thái
 bool isStepUp = false;
 
+int display_blk = 0;
+
 void walkApp() {
   if (faceChange == true) {
     tft.fillScreen(TFT_BLACK);
@@ -41,8 +43,12 @@ void walkApp() {
         tft.endWrite();
     }
     faceChange = false;
+    display_blk = millis();
   }
   lastWake = millis();
+  if (millis() - display_blk > 5000) {
+    analogWrite(TFT_BLK_PIN, 0);
+  }
   float rawAx = mpu.getAccelerationX(); // Gia tốc thô theo trục X
   float rawAy = mpu.getAccelerationY(); // Gia tốc thô theo trục Y
   float rawAz = mpu.getAccelerationZ(); // Gia tốc thô theo trục Z

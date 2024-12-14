@@ -6,6 +6,8 @@
 
 extern MPU6050 mpu;
 
+extern int display_blk;
+
 // Count times
 void walkApp();
 // Init Screen

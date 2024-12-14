@@ -226,6 +226,12 @@ void ShortClick() {
     faceChange = true;
     return;
   }
+  if (Screen == 9) {
+    if (subScreen == 0) {
+      analogWrite(TFT_BLK_PIN, brightness_level);
+      display_blk = millis();
+    }
+  }
   if (Screen == 10) {
     subScreen++;
     faceChange = true;
