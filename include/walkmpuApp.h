@@ -7,6 +7,7 @@
 extern MPU6050 mpu;
 
 extern int display_blk;
+extern bool display_walk;
 
 // Count times
 void walkApp();

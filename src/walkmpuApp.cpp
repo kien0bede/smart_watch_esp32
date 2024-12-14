@@ -3,6 +3,7 @@
 #include "step_png.h"  
 #include "foot_steps_result_png.h"
 #include "ble.h"
+#include "watchSetting.h"
 
 MPU6050 mpu(0x69);
 
@@ -18,6 +19,7 @@ unsigned long lastStepTime = 0; // Thời gian bước trước
 unsigned long minStepInterval = 300; // Khoảng cách tối thiểu giữa hai bước (ms)
 int stepCount = 0;
 int distance = 0;
+bool display_walk = true;
 
 int display_blk = 0;
 
@@ -34,8 +36,9 @@ void walkApp() {
     display_blk = millis();
   }
   lastWake = millis();
-  if (millis() - display_blk > 5000) {
+  if (millis() - display_blk > duration_brightness) {
     analogWrite(TFT_BLK_PIN, 0);
+    display_walk = false;
   }
   float rawAx = mpu.getAccelerationX(); // Gia tốc thô theo trục X
   float rawAy = mpu.getAccelerationY(); // Gia tốc thô theo trục Y

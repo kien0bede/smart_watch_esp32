@@ -122,8 +122,8 @@ bool faceChange = true;
 bool wifi_disconnect = true;
 bool lowBatteryNotified = false;
 
-RTC_DATA_ATTR int duration = 2;
-RTC_DATA_ATTR int brightness = 2;
+RTC_DATA_ATTR int duration = 3;
+RTC_DATA_ATTR int brightness = 3;
 
 #define ANALOG_PIN 1
 int sensorValue;
@@ -230,6 +230,7 @@ void ShortClick() {
     if (subScreen == 0) {
       analogWrite(TFT_BLK_PIN, brightness_level);
       display_blk = millis();
+      display_walk = true;
     }
   }
   if (Screen == 10) {
@@ -373,6 +374,8 @@ void LongPress() {
     if (subScreen == 0) {
       Screen = 9;
       subScreen = 1;
+      display_walk = true;
+      analogWrite(TFT_BLK_PIN, brightness_level);
       faceChange = true;
       return;
     } else if (subScreen == 1) {
