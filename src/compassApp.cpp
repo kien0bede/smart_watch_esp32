@@ -66,6 +66,8 @@ void compassApp() {
         value += 360;
     }
 
+    value = (value + 35) % 360;
+
     value = (value + 60) % 360;
 
     angle = value;
