@@ -55,10 +55,6 @@ void timeSyncApp() {
             int Hour = ((BT_IN[7] - '0') * 10) + (BT_IN[8] - '0');
             int Minute = ((BT_IN[9] - '0') * 10) + (BT_IN[10] - '0');
             int Second = ((BT_IN[11] - '0') * 10) + (BT_IN[12] - '0');
-            
-            // Debug thông tin thời gian
-            printf("Year: %d, Month: %d, Date: %d, Hour: %d, Minute: %d, Second: %d\n",
-                Year, Month, Date, Hour, Minute, Second);
 
             PCF8563_Set_Time(Hour, Minute, Second);
             PCF8563_Set_Days(Year, Month, Date);
