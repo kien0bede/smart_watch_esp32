@@ -577,7 +577,7 @@ void watchFace() {
     bat_percentage = 1;
   }
 
-  if (bat_percentage <= 100 && deviceConnected && !lowBatteryNotified) {
+  if (bat_percentage <= 20 && deviceConnected && !lowBatteryNotified) {
     if (pCharacteristic != nullptr) {
       pCharacteristic->setValue("BAT_LOW");
       pCharacteristic->notify();
