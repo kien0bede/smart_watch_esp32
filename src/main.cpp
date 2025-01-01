@@ -156,6 +156,7 @@ void IRAM_ATTR checkTicks() {
 
 void enter_sleep()
 {
+  compass.setMode(0x00,0x0C,0x10,0X00);
   analogWrite(TFT_BLK_PIN, 0);
   delay(100);
   rtc_gpio_hold_en((gpio_num_t) TFT_BLK_PIN);
@@ -276,6 +277,7 @@ void LongPress() {
       tft.setFreeFont(0);
       xpos = 0;
       ypos = 0;
+      compass.setMode(0x01,0x0C,0x10,0X00);
       faceChange = true;
       return;
     }
@@ -341,6 +343,7 @@ void LongPress() {
     Screen = 0;
     subScreen = 3;
     faceChange = true;
+    compass.setMode(0x00,0x0C,0x10,0X00);
     return;
   }
   if (Screen == 7) {
@@ -417,14 +420,19 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   // Init gia toc
   mpu.initialize();
+  mpu.setTempSensorEnabled(false);
+  mpu.setStandbyXGyroEnabled(true);
+  mpu.setStandbyYGyroEnabled(true);
+  mpu.setStandbyZGyroEnabled(true);
   mpu.setInterruptMode(1);
   mpu.setIntMotionEnabled(true);
   mpu.setMotionDetectionThreshold(2);
-  mpu.setMotionDetectionDuration(8);
+  mpu.setMotionDetectionDuration(25);
   // Init BT
   initBLE();
   // Init la ban
   compassInit();
+  compass.setMode(0x00,0x0C,0x10,0X00);
   // Init nhip tim
   particleSensor.begin(Wire, I2C_SPEED_FAST);
   byte ledBrightness = 0x7F;
@@ -567,8 +575,8 @@ float readBatteryPercentage() {
 
   // Tính phần trăm pin
   if (actualVoltage >= 4.0) return 100.0;
-  if (actualVoltage <= 3.0) return 0.0;
-  return (actualVoltage - 3.0) * 100 / (4.0 - 3.0);
+  if (actualVoltage <= 2.9) return 2.9;
+  return (actualVoltage - 2.9) * 100 / (4.0 - 2.9);
 }
 
 void watchFace() {
